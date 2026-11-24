@@ -1,0 +1,67 @@
+# Workflow template: Android (Gradle)
+# =============================================================================
+# Best for: Android apps using the Gradle Wrapper (gradlew).
+#
+# How to use:
+#   1. Copy this file to .github/workflows/android-gradle.yml in your repo
+#   2. Adjust the module name (example: app), task, and artifact path
+#   3. Push to the main branch (or open a PR) to trigger a build
+#
+# Environment notes:
+# - Macrunara nodes ship with JDK 17 (temurin) + Android SDK (API 35 +
+#   build-tools 35.0.0 + NDK 27) preinstalled, SDK licenses pre-accepted —
+#   copy and go.
+# =============================================================================
+
+name: Android CI (Gradle)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-android:
+    # Standard label: [macos, arm64, macrunara]
+    # Do NOT use labels the nodes don't report (e.g. self-hosted, macos-latest),
+    # or your job will stay queued forever.
+    runs-on: [macos, arm64, macrunara]
+
+    steps:
+      # Step 1: Checkout
+      - uses: actions/checkout@v5
+
+      # Optional: pin a JDK version (nodes already ship temurin-17; usually not needed)
+      # - name: Setup JDK
+      #   uses: actions/setup-java@v5
+      #   with:
+      #     distribution: temurin
+      #     java-version: '17'
+
+      # Step 2: Print environment info (helps troubleshooting)
+      - name: Show Environment
+        run: |
+          echo "OS:   $(uname -s) $(uname -m)"
+          echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
+          java -version
+          echo "ANDROID_HOME=${ANDROID_HOME:-<not set>}"
+
+      # Step 3: Build + upload
+      # -------------------
+      # Swap the task for assembleRelease / bundleRelease (AAB uses bundle*);
+      # add a unit-test step if needed: ./gradlew testDebugUnitTest --no-daemon
+      # [验证仓专用] 节点出口 Maven 白名单未部署前的镜像注入（§7 修复部署后删除）
+      - name: Setup Maven mirrors
+        run: bash .ci/scripts/setup-maven-mirrors.sh
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: app/build/outputs/
